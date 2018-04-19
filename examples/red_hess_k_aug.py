@@ -52,6 +52,7 @@ m.rh_name = Suffix(direction=Suffix.IMPORT)  #: SUFFIX FOR K_AUG AS WELL
 m.x[2].set_suffix_value(m.dof_v, 1)
 m.x[3].set_suffix_value(m.dof_v, 1)
 kaug.options["compute_inv"] = ""  #: if the reduced hessian is desired.
+#: please check the inv_.in file if the compute_inv option was used
 
 #: write some options for ipopt sens
 with open('ipopt.opt', 'w') as f:
@@ -60,7 +61,7 @@ with open('ipopt.opt', 'w') as f:
     f.write('rh_eigendecomp yes\n')
     f.close()
 #: Solve
-#sipopt.solve(m, tee=True)
+sipopt.solve(m, tee=True)
 with open('ipopt.opt', 'w') as f:
     f.close()
 
@@ -80,4 +81,5 @@ with open('result_red_hess.txt', 'r') as f:
         print(i)
     f.close()
 
-
+m.rh_name.pprint() #: in this case the positions in the matrix are given by rh_name.
+#: note that the indices start from 0!! (asl does not return 0, so one of the dof_v vars will be missing.
