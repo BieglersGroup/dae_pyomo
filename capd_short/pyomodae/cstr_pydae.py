@@ -16,6 +16,7 @@ from pyomo.opt import SolverFactory, SolverStatus
 __author__ = "David Thierry"  #: May 2018
 
 def main():
+    with_plots = False
     #: Number of finite elements
     nfe = 100
     #: Number of collocation points
@@ -117,11 +118,14 @@ def main():
 
 
     def _it_rule(mod):
-        return mod.T[0] - mod.init
+        return mod.T[0] == mod.tinit
 
 
     m.OdeT = Constraint(m.t, rule=_odet_rule)
     m.OdeC = Constraint(m.t, rule=_odec_rule)
+
+    m.IC = Constraint(rule=_ic_rule)
+    m.IT = Constraint(rule=_it_rule)
 
 
     def objective_rule(mod):
@@ -145,6 +149,10 @@ def main():
         var.setlb(0.1)
         var.setub(1)
 
+    for var in m.u.itervalues():
+        var.setlb(0)
+        var.setub(500)
+
     for t in m.t:
         m.C[t].set_value(slopec * t + value(m.cinit))
         m.T[t].set_value(slopet * t + value(m.tinit))
@@ -166,7 +174,7 @@ def main():
     #     plt.plot(tl, ul)
     #     plt.show()
 
-    if results.solver.status == SolverStatus.ok:
+    if results.solver.status == SolverStatus.ok and with_plots:
         print("Okay")
         templ = []
         cl = []

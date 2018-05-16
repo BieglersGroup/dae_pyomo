@@ -14,6 +14,7 @@ import sys
 __author__ = "David Thierry"  #: May 2018
 
 def main():
+    with_plots = False
     #: Number of finite elements
     nfe = 100
     #: Number of collocation points
@@ -170,11 +171,14 @@ def main():
 
 
     def _ic_rule(mod):
-        return mod.c0[0] == mod.cinit
+        return mod.C[1,1] == mod.cinit
 
 
     def _it_rule(mod):
-        return mod.t0[0] - mod.init
+        return mod.T[1,1] == mod.tinit
+
+    def _itt_rule(mod):
+        return mod.tt[1,1] == 0.0
 
 
     m.FeColC = Constraint(m.i, m.j, rule=_fecolc_rule)
@@ -188,6 +192,10 @@ def main():
     m.OdeT = Constraint(m.i, m.j, rule=_odet_rule)
     m.OdeC = Constraint(m.i, m.j, rule=_odec_rule)
 
+    m.IC = Constraint(rule=_ic_rule)
+    m.IT = Constraint(rule=_it_rule)
+    m.ITT = Constraint(rule=_itt_rule)
+
     for var in m.C.itervalues():
         var.setlb(0)
         var.setub(1)
@@ -196,13 +204,13 @@ def main():
         var.setlb(0.1)
         var.setub(1)
 
-    for var in m.c0.itervalues():
-        var.setlb(0)
-        var.setub(value(m.cinit))
+    # for var in m.c0.itervalues():
+    #     var.setlb(0)
+    #     var.setub(value(m.cinit))
 
-    for var in m.t0.itervalues():
-        var.setlb(0.1)
-        var.setub(1)
+    for var in m.u.itervalues():
+        var.setlb(0)
+        var.setub(500)
 
 
     def objective_rule(mod):
@@ -222,7 +230,7 @@ def main():
     ipopt = SolverFactory('ipopt')
     results = ipopt.solve(m, tee=True)
 
-    if results.solver.status == SolverStatus.ok:
+    if results.solver.status == SolverStatus.ok and with_plots:
         print("Okay")
         templ = []
         cl = []

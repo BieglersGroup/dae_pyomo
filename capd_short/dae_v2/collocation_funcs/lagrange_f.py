@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from __future__ import division
 from capd_short.dae_v2.collocation_funcs.cpoinsc import collptsgen
 
 """

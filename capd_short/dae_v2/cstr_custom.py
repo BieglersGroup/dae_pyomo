@@ -18,6 +18,7 @@ from capd_short.dae_v2.collocation_funcs.lagrange_f import lgr, lgrdot
 __author__ = "David Thierry"  #: May 2018
 
 def main():
+    with_plots = False
     #: Number of finite elements
     nfe = 100
     #: Number of collocation points
@@ -166,7 +167,7 @@ def main():
 
 
     def _it_rule(mod):
-        return mod.T[0, 0] - mod.init
+        return mod.T[0, 0] == mod.tinit
 
 
     m.Col_C = Constraint(m.fe, m.cp, rule=_c_coll)
@@ -178,6 +179,9 @@ def main():
     m.OdeT = Constraint(m.fe, m.cp, rule=_odet_rule)
     m.OdeC = Constraint(m.fe, m.cp, rule=_odec_rule)
 
+    m.IC = Constraint(rule=_ic_rule)
+    m.IT = Constraint(rule=_it_rule)
+
     for var in m.C.itervalues():
         var.setlb(0)
         var.setub(1)
@@ -186,13 +190,9 @@ def main():
         var.setlb(0.1)
         var.setub(1)
 
-    for var in m.c0.itervalues():
+    for var in m.u.itervalues():
         var.setlb(0)
-        var.setub(value(m.cinit))
-
-    for var in m.t0.itervalues():
-        var.setlb(0.1)
-        var.setub(1)
+        var.setub(500)
 
 
     def objective_rule(mod):
@@ -203,9 +203,10 @@ def main():
 
     m.fobj = Objective(sense=minimize, rule=objective_rule)
 
-
     ipopt = SolverFactory('ipopt')
     results = ipopt.solve(m, tee=True)
+
+    #: Create time values
     tij = {}
     tij[(0, 0)] = 0
     for j in m.cp:
@@ -217,8 +218,7 @@ def main():
                 if j > 0:
                     tij[(i, j)] = tij[i, 0] + m.h[i] * m.tau_i_t[j]
 
-    print(tij)
-    if results.solver.status == SolverStatus.ok:
+    if results.solver.status == SolverStatus.ok and with_plots:
         print("Okay")
         templ = []
         cl = []
@@ -232,7 +232,6 @@ def main():
             cl.append(value(m.C[key]))
             tl.append(tij[key])
             ul.append(value(m.u[key]))
-            print(tij[key])
         plt.subplot(3, 1, 1)
         plt.plot(tl, templ)
         plt.subplot(3, 1, 2)
