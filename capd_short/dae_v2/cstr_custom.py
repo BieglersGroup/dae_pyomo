@@ -3,15 +3,17 @@
 
 from __future__ import division
 from __future__ import print_function
-#: pyomo imports
-from pyomo.environ import *
+
+import matplotlib.pyplot as plt
 from pyomo.core.kernel.expr import exp
 from pyomo.core.kernel.numvalue import value
-from pyomo.opt import SolverFactory
+#: pyomo imports
+from pyomo.environ import *
+from pyomo.opt import SolverFactory, SolverStatus
+
 from capd_short.dae_v2.collocation_funcs.cpoinsc import collptsgen
 from capd_short.dae_v2.collocation_funcs.lagrange_f import lgr, lgrdot
 
-import sys
 __author__ = "David Thierry"  #: May 2018
 
 
@@ -150,7 +152,8 @@ def _t_cont(mod, i):
 
 def _odec_rule(mod, i, j):
     if j > 0:
-        return mod.dC_dt[i, j] == ((1 - mod.C[i, j])/mod.theta - mod.k10 * exp(-mod.n/mod.T[i, j]) * mod.C[i, j]) * mod.h[i]
+        return mod.dC_dt[i, j] == \
+               ((1 - mod.C[i, j]) / mod.theta - mod.k10 * exp(-mod.n / mod.T[i, j]) * mod.C[i, j]) * mod.h[i]
     else:
         return Constraint.Skip
 
@@ -158,8 +161,8 @@ def _odec_rule(mod, i, j):
 def _odet_rule(mod, i, j):
     if j > 0:
         return mod.dT_dt[i, j] == \
-               ((mod.yf - mod.T[i, j])/mod.theta + mod.k10 * exp(-mod.n/mod.T[i, j]) * mod.C[i, j] - \
-               mod.alpha[0] * mod.u[i, j] * (mod.T[i, j] - mod.yc)) * mod.h[i]
+               ((mod.yf - mod.T[i, j]) / mod.theta + mod.k10 * exp(-mod.n / mod.T[i, j]) * mod.C[i, j] -
+                mod.alpha[0] * mod.u[i, j] * (mod.T[i, j] - mod.yc)) * mod.h[i]
     else:
         return Constraint.Skip
 
@@ -172,11 +175,11 @@ def _it_rule(mod):
     return mod.T[0, 0] - mod.init
 
 
-m.FeColC = Constraint(m.fe, m.cp, rule=_c_coll)
-m.FeColT = Constraint(m.fe, m.cp, rule=_t_coll)
+m.Col_C = Constraint(m.fe, m.cp, rule=_c_coll)
+m.Col_T = Constraint(m.fe, m.cp, rule=_t_coll)
 
-m.ConC = Constraint(m.fe, rule=_c_cont)
-m.ConT = Constraint(m.fe, rule=_t_cont)
+m.Con_C = Constraint(m.fe, rule=_c_cont)
+m.Con_T = Constraint(m.fe, rule=_t_cont)
 
 m.OdeT = Constraint(m.fe, m.cp, rule=_odet_rule)
 m.OdeC = Constraint(m.fe, m.cp, rule=_odec_rule)
@@ -202,10 +205,36 @@ def objective_rule(mod):
     return sum((mod.alpha[1] * (mod.cdes - mod.C[i, j]) ** 2 +
                 mod.alpha[2] * (mod.tdes - mod.T[i, j]) ** 2 +
                 mod.alpha[3] * (mod.udes - mod.u[i, j]) ** 2)
-               for i in m.fe for j in m.cp)
+               for i in m.fe for j in m.cp if j > 0)
 
 m.fobj = Objective(sense=minimize, rule=objective_rule)
 
 
 ipopt = SolverFactory('ipopt')
-ipopt.solve(m, tee=True)
+results = ipopt.solve(m, tee=True)
+tij = {}
+tij[(0, 0)] = 0
+for j in m.cp:
+    tij[(0, j)] = m.h[0] * m.tau_i_t[j]
+for i in m.fe:
+    if i > 0:
+        tij[(i, 0)] = tij[i - 1, 0] + m.h[i]
+        for j in m.cp:
+            if j > 0:
+                tij[(i, j)] = tij[i, 0] + m.h[i] * m.tau_i_t[j]
+
+print(tij)
+if results.solver.status == SolverStatus.ok:
+    print("Okay")
+    ul = []
+    tl = []
+    for key in m.T.keys():
+        var = m.T[key]
+        if var.stale:
+            continue
+        ul.append(value(var))
+        tl.append(tij[key])
+        print(tij[key])
+
+    plt.plot(tl, ul)
+    plt.show()
