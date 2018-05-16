@@ -7,7 +7,7 @@ from __future__ import print_function
 from pyomo.environ import *
 from pyomo.core.kernel.expr import exp
 from pyomo.core.kernel.numvalue import value
-
+import sys
 __author__ = "David Thierry"  #: May 2018
 
 
@@ -64,31 +64,44 @@ m.tinit = Param(initialize=0.7293)
 m.uinit = Param(initialize=390.0)
 m.cdes = Param(initialize=0.0944)
 m.tdes = Param(initialize=0.7766)
-m.udes = Param(initialize=0.340)
-m.k10 = Param(initialize=)
-m.n = Param()
-m.m.cf = Param()
-m.tf = Param()
-m.tc = Param()
-m.theta = Param()
-m.yf = Param()
-m.yc = Param()
-m.time = Param()
-m.point = Param()
-m.nfe = Param()
-m.ncp = Param()
+m.udes = Param(initialize=340)
+m.k10 = Param(initialize=300)
+m.n = Param(initialize=5)
+
+
+m.cf = Param(initialize=7.6)
+m.tf = Param(initialize=300)
+m.tc = Param(initialize=290)
+
+
+
+m.theta = Param(initialize=20)
+m.yf = Param(initialize=0.3947)
+m.yc = Param(initialize=0.3816)
+m.time = Param(initialize=10)
+m.point = Param(initialize=0)
+
+# m.nfe = Param(initialize=100)
+# m.ncp = Param(initialize=3)
 m.slopec = Param()
 m.slopet = Param()
 m.slopeu = Param()
 m.ii = Param()
 m.jj = Param()
-m.point = Param()
+
+
+
 
 
 m.a = Param(m.j, m.j, initialize=a_init)
 m.alpha = Param([0, 1, 2, 3], initialize=alpha_init)
-m.time = Param(initialize=10)
 m.h = Param(m.i, initialize=1/value(m.nfe))
+
+m.cguess = Param(m.i, m.j)
+m.tguess = Param(m.i, m.j)
+m.ttguess = Param(m.i, m.j)
+m.uguess = Param(m.i, m.j)
+
 
 def _fecolc_rule(m, i, j):
     #: Note the ambiguity between m.j and j inside the function.
@@ -141,8 +154,8 @@ def _odec_rule(m, i, j):
 def _odet_rule(m, i, j):
     if i <= m.nfe:
         return m.tdot[i, j] == \
-               (m.yf - m.t[i, j])/m.theta + m.k10 * exp(-m.n/m.t[i, j]) * m.C[i, j] - \
-               m.alpha[0] * m.u[i, j] * (m.t[i, j] - m.yc)
+               (m.yf - m.T[i, j])/m.theta + m.k10 * exp(-m.n/m.T[i, j]) * m.C[i, j] - \
+               m.alpha[0] * m.u[i, j] * (m.T[i, j] - m.yc)
     else:
         return Constraint.Skip
 
