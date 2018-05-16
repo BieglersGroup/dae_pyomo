@@ -25,17 +25,17 @@ m.nfe = nfe
 m.ncp = ncp
 
 
-m.fe = Set(initialize=range(1, nfe + 1))
-m.cp = Set(initialize=range(1, ncp + 1))
+m.fe = Set(initialize=range(0, nfe))
+m.cp = Set(initialize=range(0, ncp + 1))
 
 
-m.tau_t = collptsgen(m.ncp_t, 1, 0)
+m.tau_t = collptsgen(m.ncp, 1, 0)
 
 # start at zero
 m.tau_i_t = {0: 0.}
 # create a list
 
-for ii in range(1, m.ncp_t + 1):
+for ii in range(1, m.ncp + 1):
     m.tau_i_t[ii] = m.tau_t[ii - 1]
 
 m.taucp_t = Param(m.cp, initialize=m.tau_i_t)
@@ -111,7 +111,7 @@ for i in range(1, m.nfe + 1):
 m.C = Var(m.fe, m.cp, initialize=cguess)
 m.T = Var(m.fe, m.cp, initialize=tguess)
 m.u = Var(m.fe, m.cp, initialize=uguess)
-m.tt = Var(m.fe, m.cp, initialize=ttguess)
+# m.tt = Var(m.fe, m.cp, initialize=ttguess)
 
 m.dC_dt = Var(m.fe, m.cp, initialize=0.0)
 m.dT_dt = Var(m.fe, m.cp, initialize=0.0)
@@ -129,77 +129,57 @@ def _c_coll(mod, i, j):
 
 def _c_cont(mod, i):
     if i < mod.nfe - 1:
-        return mod.C[i + 1, 0] - sum(mod.l1_t[j] * mod.C[i, j] for j in mod.cp_t)
-    else:
-        return Constraint.Skip
-
-def _fecolt_rule(mod, i, j):
-    if i <= mod.nfe:
-        return mod.T[i, j] == mod.t0[i] + mod.time * mod.h[i] * sum(mod.a[k, j] * mod.tdot[i, k] for k in mod.j)
+        return mod.C[i + 1, 0] == sum(mod.l1_t[j] * mod.C[i, j] for j in mod.cp)
     else:
         return Constraint.Skip
 
 
-def _fecoltt_rule(mod, i, j):
-    if i <= mod.nfe:
-        return mod.tt[i, j] == mod.tt0[i] + mod.time * mod.h[i] * sum(mod.a[k, j] for k in mod.j)
+def _t_coll(mod, i, j):
+    if j > 0:
+        return mod.dT_dt[i, j] == sum(mod.ldot_t[j, k] * mod.T[i, k] for k in mod.cp)
     else:
         return Constraint.Skip
 
-
-def _conc_rule(mod, i):
-    if 1 < i <= mod.nfe:
-        return mod.c0[i] == mod.c0[i-1] + mod.time * mod.h[i-1] * sum(mod.cdot[i-1, j] * mod.a[j, 3] for j in mod.j)
+def _t_cont(mod, i):
+    if i < mod.nfe - 1:
+        return mod.T[i + 1, 0] == sum(mod.l1_t[j] * mod.T[i, j] for j in mod.cp)
     else:
         return Constraint.Skip
 
-
-def _cont_rule(mod, i):
-    if 1 < i <= mod.nfe:
-        return mod.t0[i] == mod.t0[i-1] + mod.time * mod.h[i-1] * sum(mod.tdot[i-1, j] * mod.a[j, 3] for j in mod.j)
-    else:
-        return Constraint.Skip
-
-
-def _contt_rule(mod, i):
-    if 1 < i <= mod.nfe:
-        return mod.tt0[i] == mod.tt0[i-1] + mod.time * mod.h[i-1] * sum(mod.a[j, 3] for j in mod.j)
-    else:
-        return Constraint.Skip
 
 
 def _odec_rule(mod, i, j):
-    if i <= mod.nfe:
-        return mod.dC_dt[i, j] == (1 - mod.C[i, j])/mod.theta - mod.k10 * exp(-mod.n/mod.T[i, j]) * mod.C[i, j]
+    if j > 0:
+        return mod.dC_dt[i, j] == ((1 - mod.C[i, j])/mod.theta - mod.k10 * exp(-mod.n/mod.T[i, j]) * mod.C[i, j]) * mod.h[i]
+    else:
+        return Constraint.Skip
 
 
 def _odet_rule(mod, i, j):
-    if i <= mod.nfe:
+    if j > 0:
         return mod.dT_dt[i, j] == \
-               (mod.yf - mod.T[i, j])/mod.theta + mod.k10 * exp(-mod.n/mod.T[i, j]) * mod.C[i, j] - \
-               mod.alpha[0] * mod.u[i, j] * (mod.T[i, j] - mod.yc)
+               ((mod.yf - mod.T[i, j])/mod.theta + mod.k10 * exp(-mod.n/mod.T[i, j]) * mod.C[i, j] - \
+               mod.alpha[0] * mod.u[i, j] * (mod.T[i, j] - mod.yc)) * mod.h[i]
     else:
         return Constraint.Skip
 
 
 def _ic_rule(mod):
-    return mod.c0[0] == mod.cinit
+    return mod.C[0, 0] == mod.cinit
 
 
 def _it_rule(mod):
-    return mod.t0[0] - mod.init
+    return mod.T[0, 0] - mod.init
 
 
-m.FeColC = Constraint(m.fe, m.cp, rule=_fecolc_rule)
-m.FeColT = Constraint(m.fe, m.cp, rule=_fecolt_rule)
-m.FeColTt = Constraint(m.fe, m.cp, rule=_fecoltt_rule)
+m.FeColC = Constraint(m.fe, m.cp, rule=_c_coll)
+m.FeColT = Constraint(m.fe, m.cp, rule=_t_coll)
 
-m.ConC = Constraint(m.fe, rule=_conc_rule)
-m.ConT = Constraint(m.fe, rule=_cont_rule)
-m.ConTt = Constraint(m.fe, rule=_contt_rule)
+m.ConC = Constraint(m.fe, rule=_c_cont)
+m.ConT = Constraint(m.fe, rule=_t_cont)
 
-m.OdeTt = Constraint(m.fe, m.cp, rule=_odec_rule)
-m.OdeC = Constraint(m.fe, m.cp, rule=_odet_rule)
+m.OdeT = Constraint(m.fe, m.cp, rule=_odet_rule)
+m.OdeC = Constraint(m.fe, m.cp, rule=_odec_rule)
 
 for var in m.C.itervalues():
     var.setlb(0)
@@ -219,9 +199,9 @@ for var in m.t0.itervalues():
 
 
 def objective_rule(mod):
-    return sum(mod.h[i] * mod.a[j, 3] * (mod.alpha[1] * (mod.cdes - mod.C[i, j]) ** 2 +
-                                         mod.alpha[2] * (mod.tdes - mod.T[i, j]) ** 2 +
-                                         mod.alpha[3] * (mod.udes - mod.u[i, j]) ** 2)
+    return sum((mod.alpha[1] * (mod.cdes - mod.C[i, j]) ** 2 +
+                mod.alpha[2] * (mod.tdes - mod.T[i, j]) ** 2 +
+                mod.alpha[3] * (mod.udes - mod.u[i, j]) ** 2)
                for i in m.fe for j in m.cp)
 
 m.fobj = Objective(sense=minimize, rule=objective_rule)

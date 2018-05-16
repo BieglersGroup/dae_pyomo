@@ -165,6 +165,8 @@ def _contt_rule(mod, i):
 def _odec_rule(mod, i, j):
     if i <= mod.nfe:
         return mod.cdot[i, j] == (1 - mod.C[i, j])/mod.theta - mod.k10 * exp(-mod.n/mod.T[i, j]) * mod.C[i, j]
+    else:
+        return Constraint.Skip
 
 
 def _odet_rule(mod, i, j):
@@ -192,8 +194,8 @@ m.ConC = Constraint(m.i, rule=_conc_rule)
 m.ConT = Constraint(m.i, rule=_cont_rule)
 m.ConTt = Constraint(m.i, rule=_contt_rule)
 
-m.OdeTt = Constraint(m.i, m.j, rule=_odec_rule)
-m.OdeC = Constraint(m.i, m.j, rule=_odet_rule)
+m.OdeT = Constraint(m.i, m.j, rule=_odet_rule)
+m.OdeC = Constraint(m.i, m.j, rule=_odec_rule)
 
 for var in m.C.itervalues():
     var.setlb(0)
